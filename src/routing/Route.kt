@@ -267,9 +267,9 @@ fun Route.getUserInfo(path: String = "/query_own_user") {
     }
 }
 
-fun Route.getUserInfoById(path: String = "/query_user_by_userid") {
+fun Route.getUserInfoById(path: String = "/query_user_by_id/{user_id}") {
     post(path) {
-        val body = call.receive<CustomerInfoByUserIdRequest>()
+        val user_id = call.parameters["user_id"]
 
         connectToDatabase(
             onError = {
@@ -288,7 +288,7 @@ fun Route.getUserInfoById(path: String = "/query_user_by_userid") {
                         "from customer_information " +
                         "where customer_id=?"
                 val statement = conn.prepareStatement(query)
-                statement.setString(1, body.customer_id)
+                statement.setString(1, user_id)
                 val res = statement.executeQuery()
 
                 if (res.next()) {
@@ -372,9 +372,9 @@ fun Route.getAdminInfo(path: String = "/query_own_admin") {
     }
 }
 
-fun Route.getPegawaiById(path: String = "/query_pegawai_by_pegawaiid") {
+fun Route.getPegawaiById(path: String = "/query_pegawai_by_id/{peg_id}") {
     post(path) {
-        val body = call.receive<PegawaiByIdRequest>()
+        val pegawai_id = call.parameters["peg_id"]
 
         connectToDatabase(
             onError = {
@@ -393,7 +393,7 @@ fun Route.getPegawaiById(path: String = "/query_pegawai_by_pegawaiid") {
                         "from pegawai_information " +
                         "where pegawai_id=?"
                 val statement = conn.prepareStatement(query)
-                statement.setString(1, body.pegawai_id)
+                statement.setString(1, pegawai_id)
                 val res = statement.executeQuery()
 
                 if (res.next()) {
@@ -468,9 +468,9 @@ fun Route.getComputersList(path: String = "/query_computers") {
     }
 }
 
-fun Route.getComputerById(path: String = "query_computers_by_id") {
+fun Route.getComputerById(path: String = "query_computers_by_id/{pc_id}") {
     post(path) {
-        val body = call.receive<ComputerByIdRequest>()
+        val komputer_id = call.parameters["pc_id"]
 
         connectToDatabase(
             onError = {
@@ -491,7 +491,7 @@ fun Route.getComputerById(path: String = "query_computers_by_id") {
                         "on kat.kategori_id = pc.kategori_id " +
                         "where pc.komputer_id=?"
                 val statement = conn.prepareStatement(query)
-                statement.setString(1, body.komputer_id)
+                statement.setString(1, komputer_id)
                 val res = statement.executeQuery()
 
                 if (res.next()) {
@@ -562,9 +562,9 @@ fun Route.getFoodsList(path: String = "/query_foods") {
     }
 }
 
-fun Route.getFoodById(path: String = "/query_food_by_makananid") {
+fun Route.getFoodById(path: String = "/query_food_by_id/{food_id}") {
     post(path) {
-        val body = call.receive<FoodRequest>()
+        val makanan_id = call.parameters["food_id"]
 
         connectToDatabase(
             onError = {
@@ -585,7 +585,7 @@ fun Route.getFoodById(path: String = "/query_food_by_makananid") {
                         "on kat.kategori_id = mkn.kategori_id " +
                         "where mkn.makanan_id=?"
                 val statement = conn.prepareStatement(query)
-                statement.setString(1, body.makanan_id)
+                statement.setString(1, makanan_id)
                 val res = statement.executeQuery()
 
                 if (res.next()) {
@@ -676,7 +676,7 @@ fun Route.makeComputerTransaction(path: String = "/make_computer_transaction") {
     }
 }
 
-fun Route.endComputerTransaction(path:String = "/end_computer_transaction/trx_id={transaction_id}"){
+fun Route.endComputerTransaction(path: String = "/end_computer_transaction/trx_id={transaction_id}") {
     post(path) {
         val principal = call.principal<JWTPrincipal>()
         val user_id = principal!!.payload.getClaim("user_id").asString()
@@ -684,11 +684,51 @@ fun Route.endComputerTransaction(path:String = "/end_computer_transaction/trx_id
 
         connectToDatabase(
             onError = {
-
+                call.respond(
+                    ComputerTransactionResponse(
+                        MetaResponse(
+                            "false",
+                            it.message ?: ""
+                        )
+                    )
+                )
             },
             onConnect = { conn ->
+                val query = "begin try " +
+                        "begin transaction " +
+                        "declare @komputer_id varchar(5) " +
+                        "if(select customer_id from order_komputer where order_id = '?') != ?" +
+                        "rollback transaction" +
+                        "set @komputer_id = (" +
+                        "select pc.komputer_id from order_komputer ord join komputer pc on pc.komputer_id = ord.komputer_id where ord.order_id = ? " +
+                        ")" +
+                        "update komputer set status = 'ready' where komputer_id = @komputer_id " +
+                        "update order_komputer set status = '3' where order_id = ? " +
+                        "commit transaction " +
+                        "end try " +
+                        "begin catch " +
+                        "rollback transaction " +
+                        "end catch "
+                val statement = conn.prepareStatement(query)
+                statement.setString(1, user_id)
+                statement.setString(2, trx_id)
+                statement.setString(3, trx_id)
 
+                statement.executeUpdate()
+
+                call.respond(
+                    ComputerTransactionResponse(
+                        MetaResponse(
+                            "true",
+                            "Transaksi berhasil diakhiri"
+                        )
+                    )
+                )
             }
         )
     }
+}
+
+fun Route.getALlPegawai(path: String = "/") {
+
 }
