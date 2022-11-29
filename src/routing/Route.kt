@@ -3,24 +3,19 @@ package com.example.routing
 import com.example.data.model.ComputerModel
 import com.example.data.model.FoodModel
 import com.example.data.model.PedagangModel
+import com.example.data.model.PegawaiInfoModel
 import com.example.data.receive_request.*
 import com.example.data.send_response.*
 import com.example.model.receive_request.LoginRequest
 import com.example.model.send_response.LoginResponse
 import com.example.model.send_response.MetaResponse
-import com.example.util.ResultSetConvert
-import com.example.util.TokenManager
-import com.example.util.connectToDatabase
+import com.example.util.*
 import io.ktor.application.*
 import io.ktor.auth.*
 import io.ktor.auth.jwt.*
 import io.ktor.request.*
 import io.ktor.response.*
 import io.ktor.routing.*
-import org.jetbrains.exposed.sql.JoinType
-import org.jetbrains.exposed.sql.select
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.transaction
 import java.sql.PreparedStatement
 
 fun Route.mainRoute() {
@@ -346,7 +341,7 @@ fun Route.getAdminInfo(path: String = "/query_own_admin") {
                 val res = statement.executeQuery()
 
                 if (res.next()) {
-                    val result = ResultSetConvert.toAdminInfo(res)
+                    val result = ResultSetConvert.toPegawaiInfo(res)
 
                     call.respond(
                         PegawaiInfoResponse(
@@ -398,7 +393,7 @@ fun Route.getPegawaiById(path: String = "/query_pegawai_by_id/{peg_id}") {
                 val res = statement.executeQuery()
 
                 if (res.next()) {
-                    val result = ResultSetConvert.toAdminInfo(res)
+                    val result = ResultSetConvert.toPegawaiInfo(res)
 
                     call.respond(
                         PegawaiInfoResponse(
@@ -761,11 +756,7 @@ fun Route.getPedagangInfoById(path:String = "/query_pedagang_by_id/{pdg_id}"){
                                 "true",
                                 "Query pedagang sukses"
                             ),
-                            PedagangModel(
-                                pedagang_id = res.getString("pedagang_id"),
-                                stand_name = res.getString("stand_name"),
-                                stand_number = res.getString("stand_number")
-                            )
+                            ResultSetConvert.toPedagangInfo(res)
                         )
                     )
                 }else{
@@ -785,5 +776,70 @@ fun Route.getPedagangInfoById(path:String = "/query_pedagang_by_id/{pdg_id}"){
 }
 
 fun Route.getAllPegawai(path: String = "/query_all_pegawai") {
+    get(path) {
+        val result = ArrayList<PegawaiInfoModel>()
 
+        adminPriviledge(
+            onFailed = {
+                call.respond(
+                    PegawaiInfoListResponse(
+                        MetaResponse(
+                            "false",
+                            it.message ?: ""
+                        ),
+                        result
+                    )
+                )
+            }
+        ){
+            when(it){
+                is AdminStatus.Admin -> {
+                    connectToDatabase(
+                        onError = {
+                            call.respond(
+                                PegawaiInfoListResponse(
+                                    MetaResponse(
+                                        "false",
+                                        it.message ?: ""
+                                    ),
+                                    result
+                                )
+                            )
+                        },
+                        onConnect = { conn ->
+                            val query = "select * " +
+                                    "from pegawai_information"
+                            val statement = conn.prepareStatement(query)
+                            val res = statement.executeQuery()
+
+                            while (res.next()){
+                                result.add(ResultSetConvert.toPegawaiInfo(res))
+                            }
+
+                            call.respond(
+                                PegawaiInfoListResponse(
+                                    MetaResponse(
+                                        "true",
+                                        "Query semua pegawai berhasil"
+                                    ),
+                                    result
+                                )
+                            )
+                        }
+                    )
+                }
+                is AdminStatus.User -> {
+                    call.respond(
+                        PegawaiInfoListResponse(
+                            MetaResponse(
+                                "false",
+                                "Hanya admin yang bisa query"
+                            ),
+                            result
+                        )
+                    )
+                }
+            }
+        }
+    }
 }

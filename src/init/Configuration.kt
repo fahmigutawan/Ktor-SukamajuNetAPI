@@ -68,6 +68,7 @@ fun Application.authRouting() {
             makeComputerTransaction()
             endComputerTransaction()
             getPedagangInfoById()
+            getAllPegawai()
         }
     }
 }

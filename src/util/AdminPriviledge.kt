@@ -6,7 +6,7 @@ import io.ktor.auth.jwt.*
 import io.ktor.util.pipeline.*
 import java.sql.SQLException
 
-suspend fun PipelineContext<Unit, ApplicationCall>.adminPriviledge(onFailed:(SQLException) -> Unit,status:suspend (AdminStatus) -> Unit){
+suspend fun PipelineContext<Unit, ApplicationCall>.adminPriviledge(onFailed:suspend (SQLException) -> Unit,status:suspend (AdminStatus) -> Unit){
     val user_id = call.principal<JWTPrincipal>()!!.payload.getClaim("user_id").asString()
 
     connectToDatabase(
