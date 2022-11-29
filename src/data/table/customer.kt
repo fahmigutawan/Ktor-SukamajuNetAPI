@@ -1,18 +1,18 @@
-package com.example.model.table
+package com.example.data.table
 
 import com.example.data.model.CustomerModel
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.Table
 
-object customer:Table(){
-    val user_id = varchar("user_id", 8)
+object customer:Table() {
     val username = varchar("username", 20)
+    val customer_id = varchar("customer_id", 20)
     val password = varchar("password", 20)
 
-    fun toCustomer(row:ResultRow):CustomerModel =
+    fun toCustomerModel(row:ResultRow) =
         CustomerModel(
-            user_id = row[user_id],
-            username = row[username],
-            password = row[password]
+            row[username],
+            row[customer_id],
+            row[password]
         )
 }

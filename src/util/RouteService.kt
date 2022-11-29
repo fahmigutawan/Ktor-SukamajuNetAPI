@@ -5,8 +5,7 @@ import io.ktor.request.*
 import io.ktor.routing.*
 import kotlin.reflect.KClass
 
-object RouteService {
-    fun <T : Any> Route.post(path:String, onReceived:(T) -> Unit, type:KClass<T>){
+    fun <T : Any> Route.routePost(path:String, onReceived:(T) -> Unit, type:KClass<T>){
         post(path) {
             val body = call.receive(type)
 
@@ -14,9 +13,8 @@ object RouteService {
         }
     }
 
-    fun <T: Any> Route.get(path:String, type:KClass<T>){
+    fun <T: Any> Route.routeGet(path:String, type:KClass<T>){
         get(path) {
 
         }
     }
-}

@@ -1,8 +1,6 @@
 package com.example.init
 
-import com.example.routing.adminLoginRoute
-import com.example.routing.mainRoute
-import com.example.routing.userLoginRoute
+import com.example.routing.*
 import com.example.util.DbUrl
 import com.example.util.TokenManager
 import io.ktor.application.*
@@ -60,6 +58,12 @@ fun Application.regularRouting() {
 fun Application.authRouting() {
     routing {
         authenticate("auth-jwt") {
+            getUserInfo()
+            getUserInfoById()
+            getAdminInfo()
+            getAdminInfoById()
+            getComputerById()
+            getComputersList()
         }
     }
 }
