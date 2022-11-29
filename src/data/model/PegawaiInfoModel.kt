@@ -1,6 +1,5 @@
 package com.example.data.model
 
-import com.example.data.table.pegawai_information
 
 data class PegawaiInfoModel(
     val pegawai_id: String,
