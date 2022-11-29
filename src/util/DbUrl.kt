@@ -6,4 +6,5 @@ object DbUrl {
             "encrypt=true;" +
             "trustServerCertificate=true;" +
             "integratedSecurity=true;"
+    //kljk
 }
