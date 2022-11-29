@@ -36,11 +36,25 @@ dependencies {
     implementation("io.ktor:ktor-server-core:$ktor_version")
     implementation("io.ktor:ktor-server-netty:$ktor_version")
     implementation "io.ktor:ktor-gson:$ktor_version"
-//    implementation("io.ktor:ktor-server-content-negotiation:$ktor_version")
-//    implementation("io.ktor:ktor-serialization-kotlinx-json:1.4.1")
-    implementation "io.ktor:ktor-client-core:$ktor_version"
-    implementation "io.ktor:ktor-client-core-jvm:$ktor_version"
-    implementation "io.ktor:ktor-client-json-jvm:$ktor_version"
-    implementation "io.ktor:ktor-client-gson:$ktor_version"
-    testImplementation "io.ktor:ktor-server-tests:$ktor_version"
+
+    // JDBC
+    implementation("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
+    implementation("com.microsoft.sqlserver:mssql-jdbc:6.4.0.jre7")
+    implementation("com.h2database:h2:$h2_version")
+
+    // Auth
+    implementation("io.ktor:ktor-auth:$ktor_version")
+    implementation("io.ktor:ktor-auth-jwt:$ktor_version")
+}
+
+tasks{
+    compileKotlin {
+        kotlinOptions.jvmTarget = "15"
+        kotlinOptions.languageVersion = "1.4"
+//        kotlinOptions.javaParameters = true
+//        kotlinOptions.suppressWarnings = true
+//        kotlinOptions.freeCompilerArgs += "-Xopt-in=kotlin.RequiresOptIn"
+//        kotlinOptions.freeCompilerArgs += "-Xopt-in=kotlin.ExperimentalStdlibApi"
+//        //kotlinOptions.useIR = true (1.4 in Alpha)
+    }
 }
