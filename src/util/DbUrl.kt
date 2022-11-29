@@ -8,7 +8,7 @@ object DbUrl {
             "integratedSecurity=true;"
 
 //    val url = "jdbc:sqlserver://LAPTOP-IIPG1QH6;" +
-//            "databaseName=ProjectAkhir;" +
+//            "databaseName=ProjectAkhirFixed;" +
 //            "encrypt=true;" +
 //            "trustServerCertificate=true;" +
 //            "integratedSecurity=true;"
