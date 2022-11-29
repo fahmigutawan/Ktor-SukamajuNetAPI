@@ -2,10 +2,7 @@ package com.example.routing
 
 import com.example.data.model.ComputerModel
 import com.example.data.model.FoodModel
-import com.example.data.receive_request.ComputerByIdRequest
-import com.example.data.receive_request.CustomerInfoByUserIdRequest
-import com.example.data.receive_request.FoodRequest
-import com.example.data.receive_request.PegawaiByIdRequest
+import com.example.data.receive_request.*
 import com.example.data.send_response.*
 import com.example.model.receive_request.LoginRequest
 import com.example.model.send_response.LoginResponse
@@ -347,7 +344,7 @@ fun Route.getAdminInfo(path: String = "/query_own_admin") {
                 statement.setString(1, user_id)
                 val res = statement.executeQuery()
 
-                if(res.next()){
+                if (res.next()) {
                     val result = ResultSetConvert.toAdminInfo(res)
 
                     call.respond(
@@ -359,7 +356,7 @@ fun Route.getAdminInfo(path: String = "/query_own_admin") {
                             data = result
                         )
                     )
-                }else{
+                } else {
                     call.respond(
                         PegawaiInfoResponse(
                             metaResponse = MetaResponse(
@@ -399,7 +396,7 @@ fun Route.getPegawaiById(path: String = "/query_pegawai_by_pegawaiid") {
                 statement.setString(1, body.pegawai_id)
                 val res = statement.executeQuery()
 
-                if(res.next()){
+                if (res.next()) {
                     val result = ResultSetConvert.toAdminInfo(res)
 
                     call.respond(
@@ -411,7 +408,7 @@ fun Route.getPegawaiById(path: String = "/query_pegawai_by_pegawaiid") {
                             data = result
                         )
                     )
-                }else{
+                } else {
                     call.respond(
                         PegawaiInfoResponse(
                             metaResponse = MetaResponse(
@@ -451,7 +448,7 @@ fun Route.getComputersList(path: String = "/query_computers") {
                 val statement = conn.createStatement()
                 val res = statement.executeQuery(query)
 
-                while (res.next()){
+                while (res.next()) {
                     result.add(
                         ResultSetConvert.toComputerModel(res)
                     )
@@ -497,7 +494,7 @@ fun Route.getComputerById(path: String = "query_computers_by_id") {
                 statement.setString(1, body.komputer_id)
                 val res = statement.executeQuery()
 
-                if(res.next()){
+                if (res.next()) {
                     call.respond(
                         ComputerByIdResponse(
                             MetaResponse(
@@ -507,7 +504,7 @@ fun Route.getComputerById(path: String = "query_computers_by_id") {
                             ResultSetConvert.toComputerModel(res)
                         )
                     )
-                }else{
+                } else {
                     call.respond(
                         ComputerByIdResponse(
                             MetaResponse(
@@ -547,7 +544,7 @@ fun Route.getFoodsList(path: String = "/query_foods") {
                 val statement = conn.prepareStatement(query)
                 val res = statement.executeQuery()
 
-                while(res.next()){
+                while (res.next()) {
                     result.add(ResultSetConvert.toFoodModel(res))
                 }
 
@@ -591,7 +588,7 @@ fun Route.getFoodById(path: String = "/query_food_by_makananid") {
                 statement.setString(1, body.makanan_id)
                 val res = statement.executeQuery()
 
-                if(res.next()){
+                if (res.next()) {
                     call.respond(
                         FoodByIdResponse(
                             MetaResponse(
@@ -601,7 +598,7 @@ fun Route.getFoodById(path: String = "/query_food_by_makananid") {
                             ResultSetConvert.toFoodModel(res)
                         )
                     )
-                }else{
+                } else {
                     call.respond(
                         FoodByIdResponse(
                             MetaResponse(
@@ -613,6 +610,83 @@ fun Route.getFoodById(path: String = "/query_food_by_makananid") {
                     )
                 }
 
+
+            }
+        )
+    }
+}
+
+fun Route.makeComputerTransaction(path: String = "/make_computer_transaction") {
+    post(path) {
+        val body = call.receive<ComputerTransactionRequest>()
+
+        connectToDatabase(
+            onError = {
+                call.respond(
+                    ComputerTransactionResponse(
+                        MetaResponse(
+                            "false",
+                            it.message ?: "Transaksi komputer gagal"
+                        )
+                    )
+                )
+            },
+            onConnect = { conn ->
+                val query = "begin try " +
+                        "begin transaction " +
+                        "if((select status from komputer where komputer_id=?) = 'not ready') " +
+                        "rollback transaction " +
+                        "else  " +
+                        "update komputer set status='not ready' where komputer_id=? " +
+                        "" +
+                        "declare @count int " +
+                        "set @count = (select count(*) from komputer) " +
+                        "" +
+                        "insert into order_komputer values( " +
+                        "concat('order-PC',@count), " +
+                        "?, " +
+                        "?, " +
+                        "?, " +
+                        "'1' " +
+                        ") " +
+                        "commit transaction " +
+                        "end try " +
+                        "begin catch " +
+                        "rollback transaction " +
+                        "end catch "
+
+                val statement = conn.prepareStatement(query)
+                statement.setString(1, body.komputer_id)
+                statement.setString(2, body.komputer_id)
+                statement.setString(3, body.customer_id)
+                statement.setString(4, body.komputer_id)
+                statement.setString(5, body.harga.toString())
+                statement.executeUpdate()
+
+                call.respond(
+                    ComputerTransactionResponse(
+                        MetaResponse(
+                            "true",
+                            "Transaksi komputer berhasil"
+                        )
+                    )
+                )
+            }
+        )
+    }
+}
+
+fun Route.endComputerTransaction(path:String = "/end_computer_transaction/trx_id={transaction_id}"){
+    post(path) {
+        val principal = call.principal<JWTPrincipal>()
+        val user_id = principal!!.payload.getClaim("user_id").asString()
+        val trx_id = call.parameters["transaction_id"]
+
+        connectToDatabase(
+            onError = {
+
+            },
+            onConnect = { conn ->
 
             }
         )

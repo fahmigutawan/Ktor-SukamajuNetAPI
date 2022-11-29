@@ -34,7 +34,8 @@ object ResultSetConvert {
                 kategori_id = res.getString("kategori_id"),
                 kategori_word = res.getString("kategori_word")
             ),
-            harga_perjam = res.getString("harga_perjam")
+            harga_perjam = res.getString("harga_perjam"),
+            status = res.getString("status")
         )
 
     fun toFoodModel(res: ResultSet) =

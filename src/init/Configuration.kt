@@ -65,6 +65,7 @@ fun Application.authRouting() {
             getComputersList()
             getFoodsList()
             getFoodById()
+            makeComputerTransaction()
         }
     }
 }
