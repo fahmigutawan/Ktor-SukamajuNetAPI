@@ -2,6 +2,7 @@ package com.example.routing
 
 import com.example.data.model.ComputerModel
 import com.example.data.model.FoodModel
+import com.example.data.model.PedagangModel
 import com.example.data.receive_request.*
 import com.example.data.send_response.*
 import com.example.model.receive_request.LoginRequest
@@ -729,6 +730,60 @@ fun Route.endComputerTransaction(path: String = "/end_computer_transaction/trx_i
     }
 }
 
-fun Route.getALlPegawai(path: String = "/") {
+fun Route.getPedagangInfoById(path:String = "/query_pedagang_by_id/{pdg_id}"){
+    post(path) {
+        val pedagang_id = call.parameters["pdg_id"]
+
+        connectToDatabase(
+            onError = {
+                call.respond(
+                    PedagangByIdResponse(
+                        MetaResponse(
+                            "false",
+                            it.message ?: ""
+                        ),
+                        null
+                    )
+                )
+            },
+            onConnect = { conn ->
+                val query = "select * " +
+                        "from pedagang_information " +
+                        "where pedagang_id=?"
+                val statement = conn.prepareStatement(query)
+                statement.setString(1, pedagang_id)
+                val res = statement.executeQuery()
+
+                if(res.next()){
+                    call.respond(
+                        PedagangByIdResponse(
+                            MetaResponse(
+                                "true",
+                                "Query pedagang sukses"
+                            ),
+                            PedagangModel(
+                                pedagang_id = res.getString("pedagang_id"),
+                                stand_name = res.getString("stand_name"),
+                                stand_number = res.getString("stand_number")
+                            )
+                        )
+                    )
+                }else{
+                    call.respond(
+                        PedagangByIdResponse(
+                            MetaResponse(
+                                "false",
+                                "Pedagang tidak ditemukan"
+                            ),
+                            null
+                        )
+                    )
+                }
+            }
+        )
+    }
+}
+
+fun Route.getAllPegawai(path: String = "/query_all_pegawai") {
 
 }

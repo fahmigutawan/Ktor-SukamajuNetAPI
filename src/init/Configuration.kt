@@ -67,6 +67,7 @@ fun Application.authRouting() {
             getFoodById()
             makeComputerTransaction()
             endComputerTransaction()
+            getPedagangInfoById()
         }
     }
 }
