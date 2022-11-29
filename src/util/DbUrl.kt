@@ -6,5 +6,11 @@ object DbUrl {
             "encrypt=true;" +
             "trustServerCertificate=true;" +
             "integratedSecurity=true;"
-    //kljk
+
+//    val url = "jdbc:sqlserver://LAPTOP-IIPG1QH6;" +
+//            "databaseName=ProjectAkhir;" +
+//            "encrypt=true;" +
+//            "trustServerCertificate=true;" +
+//            "integratedSecurity=true;"
+
 }
