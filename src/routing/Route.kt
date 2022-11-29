@@ -1,30 +1,29 @@
 package com.example.routing
 
+import com.example.data.model.ComputerModel
+import com.example.data.model.FoodModel
 import com.example.data.receive_request.ComputerByIdRequest
 import com.example.data.receive_request.CustomerInfoByUserIdRequest
 import com.example.data.receive_request.FoodRequest
 import com.example.data.receive_request.PegawaiByIdRequest
 import com.example.data.send_response.*
-import com.example.data.table.*
 import com.example.model.receive_request.LoginRequest
 import com.example.model.send_response.LoginResponse
 import com.example.model.send_response.MetaResponse
-import com.example.util.AdminStatus
-import com.example.util.DbUrl
+import com.example.util.ResultSetConvert
 import com.example.util.TokenManager
-import com.example.util.adminPriviledge
+import com.example.util.connectToDatabase
 import io.ktor.application.*
 import io.ktor.auth.*
 import io.ktor.auth.jwt.*
 import io.ktor.request.*
 import io.ktor.response.*
 import io.ktor.routing.*
-import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.JoinType
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
-import java.sql.DriverManager
+import java.sql.PreparedStatement
 
 fun Route.mainRoute() {
     get("/") {
@@ -32,339 +31,590 @@ fun Route.mainRoute() {
     }
 }
 
-fun Route.userLoginRoute() {
-    post("/user_login") {
+fun Route.userLoginRoute(path: String = "/user_login") {
+    post(path) {
         val body = call.receive<LoginRequest>()
         val username = body.username
+        val password = body.password
 
-        transaction {
-            customer.select { customer.username eq username }.limit(1).firstOrNull()
-        }?.let {
-            val result = customer.toCustomerModel(it)
-
-            if (result.password == body.password) {
-                call.respond(
-                    LoginResponse(
-                        MetaResponse(
-                            "true",
-                            ""
-                        ),
-                        TokenManager.generateJwtToken(result.username, result.customer_id)
-                    )
-                )
-                return@post
-            } else {
+        connectToDatabase(
+            onError = {
                 call.respond(
                     LoginResponse(
                         MetaResponse(
                             "false",
-                            "Password Salah"
+                            it.message ?: ""
                         ),
                         ""
                     )
                 )
-                return@post
             }
-        }
+        ) { conn ->
+            // Get the count
+            val usernameCount = "SELECT COUNT(*) as count " +
+                    "FROM customer " +
+                    "WHERE username=?"
+            val usernameCountStatement: PreparedStatement = conn.prepareStatement(usernameCount)
+            usernameCountStatement.setString(1, username)
+            val resultCount = usernameCountStatement.executeQuery()
 
-        call.respond(
-            LoginResponse(
-                MetaResponse(
-                    "false",
-                    "Username tidak ditemukan"
-                ),
-                ""
-            )
-        )
-    }
-}
+            // Get the data
+            val command = "SELECT * " +
+                    "FROM customer " +
+                    "WHERE username=?"
+            val statement: PreparedStatement = conn.prepareStatement(command)
+            statement.setString(1, username)
+            val result = statement.executeQuery()
 
-fun Route.adminLoginRoute() {
-    post("/admin_login") {
-        val body = call.receive<LoginRequest>()
-        val username = body.username
-
-        transaction {
-            admin.select { admin.username eq username }.limit(1).firstOrNull()
-        }?.let {
-            val result = admin.toAdminModel(it)
-
-            if (result.password == body.password) {
-                call.respond(
-                    LoginResponse(
-                        MetaResponse(
-                            "true",
+            // Operation
+            if (resultCount.next() && result.next()) {
+                if (resultCount.getInt("count") > 0) {
+                    if (result.getString("password") == password) {
+                        call.respond(
+                            LoginResponse(
+                                MetaResponse(
+                                    "true",
+                                    ""
+                                ),
+                                TokenManager
+                                    .generateJwtToken(
+                                        result.getString("username"),
+                                        result.getString("customer_id")
+                                    )
+                            )
+                        )
+                    } else {
+                        // Wrong password
+                        call.respond(
+                            LoginResponse(
+                                MetaResponse(
+                                    "false",
+                                    "Pasword salah"
+                                ),
+                                ""
+                            )
+                        )
+                    }
+                } else {
+                    // No user found
+                    call.respond(
+                        LoginResponse(
+                            MetaResponse(
+                                "false",
+                                "Username tidak ditemukan"
+                            ),
                             ""
-                        ),
-                        TokenManager.generateJwtToken(result.username, result.pegawai_id)
+                        )
                     )
-                )
-                return@post
+                }
             } else {
+                // No user found
                 call.respond(
                     LoginResponse(
                         MetaResponse(
                             "false",
-                            "Password Salah"
+                            "Username tidak ditemukan"
                         ),
                         ""
                     )
                 )
-                return@post
             }
         }
+    }
+}
 
-        call.respond(
-            LoginResponse(
-                MetaResponse(
-                    "false",
-                    "Username tidak ditemukan"
-                ),
-                ""
-            )
+fun Route.adminLoginRoute(path: String = "/admin_login") {
+    post(path) {
+        val body = call.receive<LoginRequest>()
+        val username = body.username
+        val password = body.password
+
+        connectToDatabase(
+            onError = {
+                call.respond(
+                    LoginResponse(
+                        MetaResponse(
+                            "false",
+                            it.message ?: ""
+                        ),
+                        ""
+                    )
+                )
+            },
+            onConnect = { conn ->
+                // Get the count
+                val usernameCount = "SELECT COUNT(*) as count " +
+                        "FROM admin " +
+                        "WHERE username=?"
+                val usernameCountStatement = conn.prepareStatement(usernameCount)
+                usernameCountStatement.setString(1, username)
+                val resultCount = usernameCountStatement.executeQuery()
+
+                // Get the data
+                val command = "SELECT * " +
+                        "FROM admin " +
+                        "WHERE username=?"
+                val statement = conn.prepareStatement(command)
+                statement.setString(1, username)
+                val result = statement.executeQuery()
+
+                // Operation
+                if (resultCount.next() && result.next()) {
+                    if (resultCount.getInt("count") > 0) {
+                        if (result.getString("password") == password) {
+                            // Success
+                            call.respond(
+                                LoginResponse(
+                                    MetaResponse(
+                                        "true",
+                                        ""
+                                    ),
+                                    TokenManager
+                                        .generateJwtToken(
+                                            result.getString("username"),
+                                            result.getString("pegawai_id")
+                                        )
+                                )
+                            )
+                        } else {
+                            // Wrong password
+                            call.respond(
+                                LoginResponse(
+                                    MetaResponse(
+                                        "false",
+                                        "Password salah"
+                                    ),
+                                    ""
+                                )
+                            )
+                        }
+                    } else {
+                        // No user found
+                        call.respond(
+                            LoginResponse(
+                                MetaResponse(
+                                    "false",
+                                    "Username tidak ditemukan"
+                                ),
+                                ""
+                            )
+                        )
+                    }
+                } else {
+                    // No user found
+                    call.respond(
+                        LoginResponse(
+                            MetaResponse(
+                                "false",
+                                "Username tidak ditemukan"
+                            ),
+                            ""
+                        )
+                    )
+                }
+            }
         )
     }
 }
 
-fun Route.getUserInfo() {
-    get("/query_own_user") {
+fun Route.getUserInfo(path: String = "/query_own_user") {
+    get(path) {
         val principal = call.principal<JWTPrincipal>()
         val user_id = principal!!.payload.getClaim("user_id").asString()
 
-        transaction {
-            customer_information.select { customer_information.customer_id eq user_id }.firstOrNull()
-        }?.let {
-            val result = customer_information.toCustomerInfoModel(it)
-
-            call.respond(
-                CustomerInfoResponse(
-                    metaResponse = MetaResponse(
-                        "true",
-                        "Query own user success"
-                    ),
-                    data = result
+        connectToDatabase(
+            onError = {
+                call.respond(
+                    CustomerInfoResponse(
+                        metaResponse = MetaResponse(
+                            "true",
+                            it.message ?: ""
+                        ),
+                        data = null
+                    )
                 )
-            )
-        }
+            },
+            onConnect = { conn ->
+                val query = "select * " +
+                        "from customer_information " +
+                        "where customer_id=?"
+                val statement = conn.prepareStatement(query)
+                statement.setString(1, user_id)
+                val res = statement.executeQuery()
+
+                if (res.next()) {
+                    val result = ResultSetConvert.toUserInfo(res)
+
+                    call.respond(
+                        CustomerInfoResponse(
+                            metaResponse = MetaResponse(
+                                "true",
+                                "Query own user success"
+                            ),
+                            data = result
+                        )
+                    )
+                } else {
+                    call.respond(
+                        CustomerInfoResponse(
+                            metaResponse = MetaResponse(
+                                "true",
+                                "User tidak ditemukan"
+                            ),
+                            data = null
+                        )
+                    )
+                }
+            }
+        )
     }
 }
 
-fun Route.getUserInfoById() {
-    post("/query_user_by_userid") {
+fun Route.getUserInfoById(path: String = "/query_user_by_userid") {
+    post(path) {
         val body = call.receive<CustomerInfoByUserIdRequest>()
 
-        transaction {
-            customer_information.select {
-                customer_information.customer_id eq body.customer_id
-            }.firstOrNull()
-        }?.let {
-            val customerInfo = customer_information.toCustomerInfoModel(it)
-
-            call.respond(
-                CustomerInfoResponse(
-                    metaResponse = MetaResponse(
-                        "true",
-                        "Query user success"
-                    ),
-                    data = customerInfo
+        connectToDatabase(
+            onError = {
+                call.respond(
+                    CustomerInfoResponse(
+                        metaResponse = MetaResponse(
+                            "true",
+                            it.message ?: ""
+                        ),
+                        data = null
+                    )
                 )
-            )
+            },
+            onConnect = { conn ->
+                val query = "select * " +
+                        "from customer_information " +
+                        "where customer_id=?"
+                val statement = conn.prepareStatement(query)
+                statement.setString(1, body.customer_id)
+                val res = statement.executeQuery()
 
-            return@post
-        }
+                if (res.next()) {
+                    val result = ResultSetConvert.toUserInfo(res)
 
-        call.respond(
-            CustomerInfoResponse(
-                metaResponse = MetaResponse(
-                    "false",
-                    "User tidak ditemukan"
-                ),
-                data = null
-            )
+                    call.respond(
+                        CustomerInfoResponse(
+                            metaResponse = MetaResponse(
+                                "true",
+                                "Query own user success"
+                            ),
+                            data = result
+                        )
+                    )
+                } else {
+                    call.respond(
+                        CustomerInfoResponse(
+                            metaResponse = MetaResponse(
+                                "false",
+                                "User tidak ditemukan"
+                            ),
+                            data = null
+                        )
+                    )
+                }
+            }
         )
     }
 }
 
-fun Route.getAdminInfo() {
-    get("/query_own_admin") {
+fun Route.getAdminInfo(path: String = "/query_own_admin") {
+    get(path) {
         val principal = call.principal<JWTPrincipal>()
         val user_id = principal!!.payload.getClaim("user_id").asString()
 
-        transaction {
-            pegawai_information.select { pegawai_information.pegawai_id eq user_id }.firstOrNull()
-        }?.let {
-            val result = pegawai_information.toPegawaiInfoModel(it)
-
-            call.respond(
-                PegawaiInfoResponse(
-                    metaResponse = MetaResponse(
-                        "true",
-                        "Query pegawai success"
-                    ),
-                    data = result
+        connectToDatabase(
+            onError = {
+                call.respond(
+                    PegawaiInfoResponse(
+                        metaResponse = MetaResponse(
+                            "false",
+                            it.message ?: ""
+                        ),
+                        data = null
+                    )
                 )
-            )
-            return@get
-        }
+            },
+            onConnect = { conn ->
+                val query = "select * " +
+                        "from pegawai_information " +
+                        "where pegawai_id=?"
+                val statement = conn.prepareStatement(query)
+                statement.setString(1, user_id)
+                val res = statement.executeQuery()
 
-        call.respond(
-            PegawaiInfoResponse(
-                metaResponse = MetaResponse(
-                    "false",
-                    "Query pegawai gagal"
-                ),
-                data = null
-            )
+                if(res.next()){
+                    val result = ResultSetConvert.toAdminInfo(res)
+
+                    call.respond(
+                        PegawaiInfoResponse(
+                            metaResponse = MetaResponse(
+                                "true",
+                                "Query admin sukses"
+                            ),
+                            data = result
+                        )
+                    )
+                }else{
+                    call.respond(
+                        PegawaiInfoResponse(
+                            metaResponse = MetaResponse(
+                                "false",
+                                "Username admin tidak ditemukan"
+                            ),
+                            data = null
+                        )
+                    )
+                }
+            }
         )
     }
 }
 
-fun Route.getPegawaiById() {
-    post("/query_pegawai_by_pegawaiid") {
+fun Route.getPegawaiById(path: String = "/query_pegawai_by_pegawaiid") {
+    post(path) {
         val body = call.receive<PegawaiByIdRequest>()
 
-        transaction {
-            pegawai_information.select { pegawai_information.pegawai_id eq body.pegawai_id }.firstOrNull()
-        }?.let {
-            val result = pegawai_information.toPegawaiInfoModel(it)
-
-            call.respond(
-                PegawaiInfoResponse(
-                    metaResponse = MetaResponse(
-                        "true",
-                        "Query pegawai success"
-                    ),
-                    data = result
+        connectToDatabase(
+            onError = {
+                call.respond(
+                    PegawaiInfoResponse(
+                        metaResponse = MetaResponse(
+                            "false",
+                            it.message ?: ""
+                        ),
+                        data = null
+                    )
                 )
-            )
-            return@post
-        }
+            },
+            onConnect = { conn ->
+                val query = "select * " +
+                        "from pegawai_information " +
+                        "where pegawai_id=?"
+                val statement = conn.prepareStatement(query)
+                statement.setString(1, body.pegawai_id)
+                val res = statement.executeQuery()
 
-        call.respond(
-            PegawaiInfoResponse(
-                metaResponse = MetaResponse(
-                    "false",
-                    "Query pegawai gagal"
-                ),
-                data = null
-            )
-        )
-    }
-}
+                if(res.next()){
+                    val result = ResultSetConvert.toAdminInfo(res)
 
-fun Route.getComputersList() {
-    get("/query_computers") {
-        val result = transaction {
-            komputer.join(
-                otherTable = kategori_komputer,
-                joinType = JoinType.INNER,
-                onColumn = komputer.kategori_id,
-                otherColumn = kategori_komputer.kategori_id
-            ).selectAll().map {
-                komputer.toComputerModel(it)
+                    call.respond(
+                        PegawaiInfoResponse(
+                            metaResponse = MetaResponse(
+                                "true",
+                                "Query pegawai sukses"
+                            ),
+                            data = result
+                        )
+                    )
+                }else{
+                    call.respond(
+                        PegawaiInfoResponse(
+                            metaResponse = MetaResponse(
+                                "false",
+                                "Pegawai tidak ditemukan"
+                            ),
+                            data = null
+                        )
+                    )
+                }
             }
-        }
-
-        call.respond(
-            ComputerListResponse(
-                MetaResponse(
-                    "success",
-                    "Query computer list success"
-                ),
-                result
-            )
         )
     }
 }
 
-fun Route.getComputerById() {
-    post("query_computers_by_id") {
+fun Route.getComputersList(path: String = "/query_computers") {
+    get(path) {
+        val result = ArrayList<ComputerModel>()
+
+        connectToDatabase(
+            onError = {
+                call.respond(
+                    ComputerListResponse(
+                        MetaResponse(
+                            "false",
+                            it.message ?: ""
+                        ),
+                        result
+                    )
+                )
+            },
+            onConnect = { conn ->
+                val query = "select pc.*, kat.kategori_word " +
+                        "from komputer pc " +
+                        "join kategori_komputer kat " +
+                        "on kat.kategori_id = pc.kategori_id"
+                val statement = conn.createStatement()
+                val res = statement.executeQuery(query)
+
+                while (res.next()){
+                    result.add(
+                        ResultSetConvert.toComputerModel(res)
+                    )
+                }
+
+                call.respond(
+                    ComputerListResponse(
+                        MetaResponse(
+                            "true",
+                            "Query computers sukses"
+                        ),
+                        result
+                    )
+                )
+            }
+        )
+    }
+}
+
+fun Route.getComputerById(path: String = "query_computers_by_id") {
+    post(path) {
         val body = call.receive<ComputerByIdRequest>()
 
-        transaction {
-            komputer.join(
-                otherTable = kategori_komputer,
-                joinType = JoinType.INNER,
-                onColumn = komputer.kategori_id,
-                otherColumn = kategori_komputer.kategori_id
-            ).select {
-                komputer.komputer_id eq body.komputer_id
-            }.firstOrNull()
-        }?.let {
-            call.respond(
-                ComputerByIdResponse(
-                    metaResponse = MetaResponse(
-                        "true",
-                        "Query komputer by komputer_id success"
-                    ),
-                    komputer.toComputerModel(it)
+        connectToDatabase(
+            onError = {
+                call.respond(
+                    ComputerByIdResponse(
+                        MetaResponse(
+                            "false",
+                            it.message ?: ""
+                        ),
+                        null
+                    )
                 )
-            )
-            return@post
-        }
+            },
+            onConnect = { conn ->
+                val query = "select pc.*, kat.kategori_word " +
+                        "from komputer pc " +
+                        "join kategori_komputer kat " +
+                        "on kat.kategori_id = pc.kategori_id " +
+                        "where pc.komputer_id=?"
+                val statement = conn.prepareStatement(query)
+                statement.setString(1, body.komputer_id)
+                val res = statement.executeQuery()
 
-        call.respond(
-            ComputerByIdResponse(
-                metaResponse = MetaResponse(
-                    "false",
-                    "Komputer tidak ditemukan"
-                ),
-                null
-            )
-        )
-    }
-}
-
-fun Route.getFoodsList() {
-    get("/query_foods") {
-        val result = transaction {
-            makanan.join(
-                otherTable = kategori_makanan,
-                joinType = JoinType.INNER,
-                onColumn = makanan.kategori_id,
-                otherColumn = kategori_makanan.kategori_id
-            ).selectAll().map {
-                makanan.toMakananModel(it)
+                if(res.next()){
+                    call.respond(
+                        ComputerByIdResponse(
+                            MetaResponse(
+                                "true",
+                                "Query komputer sukses"
+                            ),
+                            ResultSetConvert.toComputerModel(res)
+                        )
+                    )
+                }else{
+                    call.respond(
+                        ComputerByIdResponse(
+                            MetaResponse(
+                                "false",
+                                "Query komputer gagal"
+                            ),
+                            null
+                        )
+                    )
+                }
             }
-        }
-
-        call.respond(
-            FoodListResponse(
-                MetaResponse("true", "Query all food success"),
-                result
-            )
         )
     }
 }
 
-fun Route.getFoodById() {
-    post("/query_food_by_makananid"){
+fun Route.getFoodsList(path: String = "/query_foods") {
+    get(path) {
+        val result = ArrayList<FoodModel>()
+
+        connectToDatabase(
+            onError = {
+                call.respond(
+                    FoodListResponse(
+                        MetaResponse(
+                            "false",
+                            it.message ?: ""
+                        ),
+                        result
+                    )
+                )
+            },
+            onConnect = { conn ->
+                val query = "select mkn.*, kat.kategori_word " +
+                        "from makanan mkn " +
+                        "join kategori_makanan kat " +
+                        "on kat.kategori_id = mkn.kategori_id"
+                val statement = conn.prepareStatement(query)
+                val res = statement.executeQuery()
+
+                while(res.next()){
+                    result.add(ResultSetConvert.toFoodModel(res))
+                }
+
+                call.respond(
+                    FoodListResponse(
+                        MetaResponse(
+                            "true",
+                            "Query makanan berhasil"
+                        ),
+                        result
+                    )
+                )
+            }
+        )
+    }
+}
+
+fun Route.getFoodById(path: String = "/query_food_by_makananid") {
+    post(path) {
         val body = call.receive<FoodRequest>()
 
-        transaction {
-            makanan.join(
-                otherTable = kategori_makanan,
-                joinType = JoinType.INNER,
-                onColumn = makanan.kategori_id,
-                otherColumn = kategori_makanan.kategori_id
-            ).select {
-                makanan.makanan_id eq body.makanan_id
-            }.firstOrNull()
-        }?.let {
-            call.respond(
-                FoodByIdResponse(
-                    MetaResponse("true", "Query makanan sukses"),
-                    makanan.toMakananModel(it)
+        connectToDatabase(
+            onError = {
+                call.respond(
+                    FoodByIdResponse(
+                        MetaResponse(
+                            "false",
+                            it.message ?: ""
+                        ),
+                        null
+                    )
                 )
-            )
-            return@post
-        }
+            },
+            onConnect = { conn ->
+                val query = "select mkn.*, kat.kategori_word " +
+                        "from makanan mkn " +
+                        "join kategori_makanan kat " +
+                        "on kat.kategori_id = mkn.kategori_id " +
+                        "where mkn.makanan_id=?"
+                val statement = conn.prepareStatement(query)
+                statement.setString(1, body.makanan_id)
+                val res = statement.executeQuery()
 
-        call.respond(
-            FoodByIdResponse(
-                MetaResponse("false", "Query makanan tidak ditemukan"),
-                null
-            )
+                if(res.next()){
+                    call.respond(
+                        FoodByIdResponse(
+                            MetaResponse(
+                                "true",
+                                "Query makanan sukses"
+                            ),
+                            ResultSetConvert.toFoodModel(res)
+                        )
+                    )
+                }else{
+                    call.respond(
+                        FoodByIdResponse(
+                            MetaResponse(
+                                "false",
+                                "Query makanan gagal"
+                            ),
+                            null
+                        )
+                    )
+                }
+
+
+            }
         )
     }
 }
