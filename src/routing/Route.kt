@@ -2,24 +2,29 @@ package com.example.routing
 
 import com.example.data.receive_request.ComputerByIdRequest
 import com.example.data.receive_request.CustomerInfoByUserIdRequest
-import com.example.data.send_response.ComputerByIdResponse
-import com.example.data.send_response.ComputerListResponse
-import com.example.data.send_response.CustomerInfoResponse
+import com.example.data.receive_request.FoodRequest
+import com.example.data.receive_request.PegawaiByIdRequest
+import com.example.data.send_response.*
 import com.example.data.table.*
 import com.example.model.receive_request.LoginRequest
 import com.example.model.send_response.LoginResponse
 import com.example.model.send_response.MetaResponse
+import com.example.util.AdminStatus
+import com.example.util.DbUrl
 import com.example.util.TokenManager
+import com.example.util.adminPriviledge
 import io.ktor.application.*
 import io.ktor.auth.*
 import io.ktor.auth.jwt.*
 import io.ktor.request.*
 import io.ktor.response.*
 import io.ktor.routing.*
+import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.JoinType
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
+import java.sql.DriverManager
 
 fun Route.mainRoute() {
     get("/") {
@@ -181,11 +186,70 @@ fun Route.getUserInfoById() {
 }
 
 fun Route.getAdminInfo() {
+    get("/query_own_admin") {
+        val principal = call.principal<JWTPrincipal>()
+        val user_id = principal!!.payload.getClaim("user_id").asString()
 
+        transaction {
+            pegawai_information.select { pegawai_information.pegawai_id eq user_id }.firstOrNull()
+        }?.let {
+            val result = pegawai_information.toPegawaiInfoModel(it)
+
+            call.respond(
+                PegawaiInfoResponse(
+                    metaResponse = MetaResponse(
+                        "true",
+                        "Query pegawai success"
+                    ),
+                    data = result
+                )
+            )
+            return@get
+        }
+
+        call.respond(
+            PegawaiInfoResponse(
+                metaResponse = MetaResponse(
+                    "false",
+                    "Query pegawai gagal"
+                ),
+                data = null
+            )
+        )
+    }
 }
 
-fun Route.getAdminInfoById() {
+fun Route.getPegawaiById() {
+    post("/query_pegawai_by_pegawaiid") {
+        val body = call.receive<PegawaiByIdRequest>()
 
+        transaction {
+            pegawai_information.select { pegawai_information.pegawai_id eq body.pegawai_id }.firstOrNull()
+        }?.let {
+            val result = pegawai_information.toPegawaiInfoModel(it)
+
+            call.respond(
+                PegawaiInfoResponse(
+                    metaResponse = MetaResponse(
+                        "true",
+                        "Query pegawai success"
+                    ),
+                    data = result
+                )
+            )
+            return@post
+        }
+
+        call.respond(
+            PegawaiInfoResponse(
+                metaResponse = MetaResponse(
+                    "false",
+                    "Query pegawai gagal"
+                ),
+                data = null
+            )
+        )
+    }
 }
 
 fun Route.getComputersList() {
@@ -252,9 +316,55 @@ fun Route.getComputerById() {
 }
 
 fun Route.getFoodsList() {
+    get("/query_foods") {
+        val result = transaction {
+            makanan.join(
+                otherTable = kategori_makanan,
+                joinType = JoinType.INNER,
+                onColumn = makanan.kategori_id,
+                otherColumn = kategori_makanan.kategori_id
+            ).selectAll().map {
+                makanan.toMakananModel(it)
+            }
+        }
 
+        call.respond(
+            FoodListResponse(
+                MetaResponse("true", "Query all food success"),
+                result
+            )
+        )
+    }
 }
 
 fun Route.getFoodById() {
+    post("/query_food_by_makananid"){
+        val body = call.receive<FoodRequest>()
 
+        transaction {
+            makanan.join(
+                otherTable = kategori_makanan,
+                joinType = JoinType.INNER,
+                onColumn = makanan.kategori_id,
+                otherColumn = kategori_makanan.kategori_id
+            ).select {
+                makanan.makanan_id eq body.makanan_id
+            }.firstOrNull()
+        }?.let {
+            call.respond(
+                FoodByIdResponse(
+                    MetaResponse("true", "Query makanan sukses"),
+                    makanan.toMakananModel(it)
+                )
+            )
+            return@post
+        }
+
+        call.respond(
+            FoodByIdResponse(
+                MetaResponse("false", "Query makanan tidak ditemukan"),
+                null
+            )
+        )
+    }
 }

@@ -14,7 +14,6 @@ import io.ktor.response.*
 import io.ktor.routing.*
 import org.jetbrains.exposed.sql.Database
 import org.slf4j.event.Level
-import kotlin.time.Duration
 
 fun Application.configureNegotiation() {
     install(ContentNegotiation) {
@@ -61,9 +60,11 @@ fun Application.authRouting() {
             getUserInfo()
             getUserInfoById()
             getAdminInfo()
-            getAdminInfoById()
+            getPegawaiById()
             getComputerById()
             getComputersList()
+            getFoodsList()
+            getFoodById()
         }
     }
 }
