@@ -1,7 +1,6 @@
 package com.example.init
 
 import com.example.routing.adminLoginRoute
-import com.example.routing.getUsernameByToken
 import com.example.routing.mainRoute
 import com.example.routing.userLoginRoute
 import com.example.util.DbUrl
@@ -17,6 +16,7 @@ import io.ktor.response.*
 import io.ktor.routing.*
 import org.jetbrains.exposed.sql.Database
 import org.slf4j.event.Level
+import kotlin.time.Duration
 
 fun Application.configureNegotiation() {
     install(ContentNegotiation) {
@@ -60,7 +60,22 @@ fun Application.regularRouting() {
 fun Application.authRouting() {
     routing {
         authenticate("auth-jwt") {
-            getUsernameByToken()
         }
+    }
+}
+
+fun Application.configureCORS(){
+    install(CORS) {
+        method(HttpMethod.Options)
+        method(HttpMethod.Get)
+        method(HttpMethod.Post)
+        method(HttpMethod.Put)
+        method(HttpMethod.Delete)
+        method(HttpMethod.Patch)
+        header(HttpHeaders.AccessControlAllowHeaders)
+        header(HttpHeaders.ContentType)
+        header(HttpHeaders.AccessControlAllowOrigin)
+        allowCredentials = true
+        anyHost()
     }
 }

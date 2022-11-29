@@ -37,6 +37,9 @@ dependencies {
     implementation("io.ktor:ktor-server-netty:$ktor_version")
     implementation "io.ktor:ktor-gson:$ktor_version"
 
+    // CORS
+//    implementation("io.ktor:ktor-server-cors:1.6.8")
+
     // JDBC
     implementation("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
     implementation("com.microsoft.sqlserver:mssql-jdbc:6.4.0.jre7")
