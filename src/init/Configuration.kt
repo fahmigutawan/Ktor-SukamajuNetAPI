@@ -63,12 +63,16 @@ fun Application.authRouting() {
             getPegawaiById()
             getComputerById()
             getComputersList()
-            getFoodsList()
+            getFoodList()
+            getFoodListByPedagangId()
             getFoodById()
             makeComputerTransaction()
             endComputerTransaction()
             getPedagangInfoById()
             getAllPegawai()
+            insertNewPegawai()
+            updatePegawai()
+            deletePegawai()
         }
     }
 }

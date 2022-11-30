@@ -2,7 +2,6 @@ package com.example.routing
 
 import com.example.data.model.ComputerModel
 import com.example.data.model.FoodModel
-import com.example.data.model.PedagangModel
 import com.example.data.model.PegawaiInfoModel
 import com.example.data.receive_request.*
 import com.example.data.send_response.*
@@ -17,6 +16,7 @@ import io.ktor.request.*
 import io.ktor.response.*
 import io.ktor.routing.*
 import java.sql.PreparedStatement
+import java.sql.Types
 
 fun Route.mainRoute() {
     get("/") {
@@ -516,7 +516,7 @@ fun Route.getComputerById(path: String = "query_computers_by_id/{pc_id}") {
     }
 }
 
-fun Route.getFoodsList(path: String = "/query_foods") {
+fun Route.getFoodList(path: String = "/query_foods") {
     get(path) {
         val result = ArrayList<FoodModel>()
 
@@ -542,6 +542,53 @@ fun Route.getFoodsList(path: String = "/query_foods") {
 
                 while (res.next()) {
                     result.add(ResultSetConvert.toFoodModel(res))
+                }
+
+                call.respond(
+                    FoodListResponse(
+                        MetaResponse(
+                            "true",
+                            "Query makanan berhasil"
+                        ),
+                        result
+                    )
+                )
+            }
+        )
+    }
+}
+
+fun Route.getFoodListByPedagangId(path: String = "/query_food_by_pedagang/{pdg_id}") {
+    post(path) {
+        val pedagang_id = call.parameters["pdg_id"]
+        val result = ArrayList<FoodModel>()
+
+        connectToDatabase(
+            onError = {
+                call.respond(
+                    FoodListResponse(
+                        MetaResponse(
+                            "false",
+                            it.message ?: ""
+                        ),
+                        result
+                    )
+                )
+            },
+            onConnect = { conn ->
+                val query = "select mkn.*, kat.kategori_word " +
+                        "from makanan mkn " +
+                        "join kategori_makanan kat " +
+                        "on kat.kategori_id = mkn.kategori_id " +
+                        "where mkn.pedagang_id=?"
+                val statement = conn.prepareStatement(query)
+                statement.setString(1, pedagang_id)
+                val res = statement.executeQuery()
+
+                while(res.next()){
+                    result.add(
+                        ResultSetConvert.toFoodModel(res)
+                    )
                 }
 
                 call.respond(
@@ -725,7 +772,7 @@ fun Route.endComputerTransaction(path: String = "/end_computer_transaction/trx_i
     }
 }
 
-fun Route.getPedagangInfoById(path:String = "/query_pedagang_by_id/{pdg_id}"){
+fun Route.getPedagangInfoById(path: String = "/query_pedagang_by_id/{pdg_id}") {
     post(path) {
         val pedagang_id = call.parameters["pdg_id"]
 
@@ -749,7 +796,7 @@ fun Route.getPedagangInfoById(path:String = "/query_pedagang_by_id/{pdg_id}"){
                 statement.setString(1, pedagang_id)
                 val res = statement.executeQuery()
 
-                if(res.next()){
+                if (res.next()) {
                     call.respond(
                         PedagangByIdResponse(
                             MetaResponse(
@@ -759,7 +806,7 @@ fun Route.getPedagangInfoById(path:String = "/query_pedagang_by_id/{pdg_id}"){
                             ResultSetConvert.toPedagangInfo(res)
                         )
                     )
-                }else{
+                } else {
                     call.respond(
                         PedagangByIdResponse(
                             MetaResponse(
@@ -791,8 +838,8 @@ fun Route.getAllPegawai(path: String = "/query_all_pegawai") {
                     )
                 )
             }
-        ){
-            when(it){
+        ) {
+            when (it) {
                 is AdminStatus.Admin -> {
                     connectToDatabase(
                         onError = {
@@ -812,7 +859,7 @@ fun Route.getAllPegawai(path: String = "/query_all_pegawai") {
                             val statement = conn.prepareStatement(query)
                             val res = statement.executeQuery()
 
-                            while (res.next()){
+                            while (res.next()) {
                                 result.add(ResultSetConvert.toPegawaiInfo(res))
                             }
 
@@ -836,6 +883,226 @@ fun Route.getAllPegawai(path: String = "/query_all_pegawai") {
                                 "Hanya admin yang bisa query"
                             ),
                             result
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+fun Route.insertNewPegawai(path: String = "/insert_new_pegawai") {
+    post(path) {
+        val body = call.receive<InsertPegawaiRequest>()
+
+        adminPriviledge(
+            onFailed = {
+                call.respond(
+                    ManipulatePegawaiResponse(
+                        MetaResponse(
+                            "false",
+                            it.message ?: ""
+                        )
+                    )
+                )
+            }
+        ) {
+            when (it) {
+                is AdminStatus.User -> {
+                    call.respond(
+                        ManipulatePegawaiResponse(
+                            MetaResponse(
+                                "false",
+                                "Hanya admin yang bisa update pegawai"
+                            )
+                        )
+                    )
+                }
+                is AdminStatus.Admin -> {
+                    connectToDatabase(
+                        onError = {
+                            call.respond(
+                                ManipulatePegawaiResponse(
+                                    MetaResponse(
+                                        "false",
+                                        it.message ?: ""
+                                    )
+                                )
+                            )
+                        },
+                        onConnect = { conn ->
+                            var count = 0
+
+                            // Calculate count
+                            val countQuery = "select count(*) as count " +
+                                    "from pegawai_information"
+                            val countStatement = conn.createStatement()
+                            val countRes = countStatement.executeQuery(countQuery)
+
+                            if (countRes.next()) {
+                                count = countRes.getInt("count")
+                            }
+
+                            // Insert
+                            val query = "insert into pegawai_information values( " +
+                                    "?,  " +
+                                    "?, " +
+                                    "?, " +
+                                    "?, " +
+                                    "?, " +
+                                    "?, " +
+                                    "?, " +
+                                    "?, " +
+                                    "?, " +
+                                    "? " +
+                                    ")"
+                            val statement = conn.prepareStatement(query)
+                            statement.setString(1, String.format("PGW%d", (count + 1)))
+                            statement.setString(2, body.profile_pic)
+                            statement.setNull(3, Types.NULL)
+                            statement.setDouble(4, body.salary)
+                            statement.setString(5, body.nama)
+                            statement.setString(6, body.no_telp)
+                            statement.setString(7, body.jalan)
+                            statement.setString(8, body.kode_pos)
+                            statement.setString(9, body.kota)
+                            statement.setString(10, body.provinsi)
+                            statement.executeUpdate()
+
+                            call.respond(
+                                ManipulatePegawaiResponse(
+                                    MetaResponse(
+                                        "true",
+                                        "Insert pegawai berhasil"
+                                    )
+                                )
+                            )
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+fun Route.updatePegawai(path: String = "/update_pegawai") {
+    post(path = path) {
+        val body = call.receive<UpdatePegawaiRequest>()
+
+        adminPriviledge(
+            onFailed = {
+                call.respond(
+                    ManipulatePegawaiResponse(MetaResponse("false", it.message ?: ""))
+                )
+            }
+        ) {
+            when (it) {
+                is AdminStatus.Admin -> {
+                    connectToDatabase(
+                        onError = {
+                            call.respond(
+                                ManipulatePegawaiResponse(MetaResponse("false", it.message ?: ""))
+                            )
+                        },
+                        onConnect = { conn ->
+                            val query = "update pegawai_information " +
+                                    "set  " +
+                                    "profile_pic = ?, " +
+                                    "salary = ?, " +
+                                    "nama = ?, " +
+                                    "no_telp = ?, " +
+                                    "jalan = ?, " +
+                                    "kode_pos = ?, " +
+                                    "kota = ?, " +
+                                    "provinsi = ? " +
+                                    "where pegawai_id  = ?"
+
+                            val statement = conn.prepareStatement(query)
+                            statement.setString(1, body.profile_pic)
+                            statement.setDouble(2, body.salary)
+                            statement.setString(3, body.nama)
+                            statement.setString(4, body.no_telp)
+                            statement.setString(5, body.jalan)
+                            statement.setString(6, body.kode_pos)
+                            statement.setString(7, body.kota)
+                            statement.setString(8, body.provinsi)
+                            statement.setString(9, body.pegawai_id)
+                            statement.executeUpdate()
+
+                            call.respond(
+                                ManipulatePegawaiResponse(
+                                    MetaResponse(
+                                        "true",
+                                        "Update pegawai berhasil"
+                                    )
+                                )
+                            )
+                        }
+                    )
+                }
+
+                is AdminStatus.User -> {
+                    call.respond(
+                        ManipulatePegawaiResponse(
+                            MetaResponse(
+                                "false",
+                                "Hanya admin yang bisa update"
+                            )
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+fun Route.deletePegawai(path: String = "/delete_pegawai/{peg_id}") {
+    post(path) {
+        val pegawai_id = call.parameters["peg_id"]
+
+        adminPriviledge(
+            onFailed = {
+                call.respond(
+                    ManipulatePegawaiResponse(MetaResponse("false", it.message ?: ""))
+                )
+            }
+        ) {
+            when (it) {
+                is AdminStatus.Admin -> {
+                    connectToDatabase(
+                        onError = {
+                            call.respond(
+                                ManipulatePegawaiResponse(MetaResponse("false", it.message ?: ""))
+                            )
+                        },
+                        onConnect = { conn ->
+                            val query = "delete from " +
+                                    "pegawai_information " +
+                                    "where pegawai_id=?"
+
+                            val statement = conn.prepareStatement(query)
+                            statement.setString(1, pegawai_id)
+                            statement.executeUpdate()
+
+                            call.respond(
+                                ManipulatePegawaiResponse(
+                                    MetaResponse(
+                                        "true",
+                                        "Delete pegawai berhasil"
+                                    )
+                                )
+                            )
+                        }
+                    )
+                }
+
+                is AdminStatus.User -> {
+                    call.respond(
+                        ManipulatePegawaiResponse(
+                            MetaResponse(
+                                "false",
+                                "Hanya admin yang bisa update"
+                            )
                         )
                     )
                 }
